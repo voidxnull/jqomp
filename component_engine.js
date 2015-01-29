@@ -1,8 +1,6 @@
 /**
- * Движок.
- * Содержит, инициализирует, удаляет компоненты.
- * Предоставляет обработку событий (простой EventDispatcher)
- * и действий по клику и change ([data-action] у элементов).
+ * Engine.
+ * Handles components
  * @constructor
  */
 function ComponentEngine() {
@@ -16,14 +14,12 @@ ComponentEngine.prototype = {
   constructor: ComponentEngine,
 
   /**
-   * Инициализирует компоненты, отправляет события,
-   * созданные в методах init компонентов до полной инициализации движка.
-   * Вешает обработчик кликов на элементы с [data-action].
+   * Initializes components, dispatches events after initialization of all the components.
    */
   init: function () {
     var self = this;
 
-    // Инициализация компонентов
+    // Initializing components
     for (var c in this.components) {
       if (this.components.hasOwnProperty(c)) {
         var component = this.components[c];
@@ -34,7 +30,7 @@ ComponentEngine.prototype = {
     }
     this.initialized = true;
 
-    // Отправка событий
+    // Dispatching deferred events
     for (var e in this.deferredEvents) {
       if (this.deferredEvents.hasOwnProperty(e)) {
         var event = this.deferredEvents[e];
@@ -43,7 +39,7 @@ ComponentEngine.prototype = {
     }
     this.deferredEvents.length = 0;
 
-    // Обработчики действий
+    // Adding listeners for actions ([data-action])
     function actionHandler() {
       var action = $(this).data('action');
       for (var c in self.components) {
@@ -58,7 +54,7 @@ ComponentEngine.prototype = {
   },
 
   /**
-   * Добавляет компонент и инициализирует его, если движок уже инициализирован.
+   * Adds the component and initializes it if the engine is initialized.
    * @param {Component} component
    */
   addComponent: function (component) {
@@ -73,7 +69,7 @@ ComponentEngine.prototype = {
   },
 
   /**
-   * Получает компонент по имени.
+   * Gets the component by its name.
    * @param {string|Component} component
    * @returns {Component}
    */
@@ -88,7 +84,7 @@ ComponentEngine.prototype = {
   },
 
   /**
-   * Вызывает disableComponent и удаляет из components.
+   * Invokes 'disableComponent' for the component and removes it from the list of all components. 
    * @param {string|Component} component
    */
   removeComponent: function (component) {
@@ -99,7 +95,7 @@ ComponentEngine.prototype = {
   },
 
   /**
-   * Инициализирует компонент.
+   * Initializes the component.
    * @param {string|Component} component
    */
   enableComponent: function (component) {
@@ -110,8 +106,7 @@ ComponentEngine.prototype = {
   },
 
   /**
-   * Вызывает remove у компонента, удаляет обработчики событий,
-   * но не удаляет компонент из components.
+   * Invokes 'remove' of the component, removes event handlers of the component from the engine.
    * @param {string|Component} component
    */
   disableComponent: function (component) {
@@ -119,8 +114,7 @@ ComponentEngine.prototype = {
     if (component.enabled) {
       component.remove(this);
       component.enabled = false;
-      // TODO: Если хранить события в компоненте, то возможно их удалять за O(N), но пока нет нужды.
-      // Удаление обработчиков событий
+      // Removing event handlers of the component
       for (var ls in this.eventListeners) {
         if (this.eventListeners.hasOwnProperty(ls)) {
           var listeners = this.eventListeners[ls];
@@ -134,9 +128,8 @@ ComponentEngine.prototype = {
     }
   },
 
-  // TODO: Возможно, изменить систему событий или использовать стороннюю если потребуется.
   /**
-   * Добавляет обработчик событий.
+   * Adds the event listener to 'this.listeners[event]'
    * @param {string} event
    * @param {function} listener
    */
@@ -147,7 +140,7 @@ ComponentEngine.prototype = {
   },
 
   /**
-   * Удаляет обработчик событий.
+   * Removes the event listener.
    * @param {string} event
    * @param {function} listener
    */
@@ -160,9 +153,9 @@ ComponentEngine.prototype = {
   },
 
   /**
-   * Создает событие.
+   * Dispatches the event.
    * @param {string} event
-   * @param {object} data - Любые данные.
+   * @param {object} data - Any data.
    */
   dispatchEvent: function (event, data) {
     if (this.initialized) {
@@ -178,7 +171,7 @@ ComponentEngine.prototype = {
   },
 
   /**
-   * Рекурсивно инициализирует компонент и его подкомпоненты.
+   * Recursively initializes the component and its subcomponents.
    * @param {string|Component} component
    * @param {string} [scopeStr]
    * @private
@@ -200,11 +193,9 @@ ComponentEngine.prototype = {
 };
 
 /**
- * Компонент.
- * Методы необходимые для движка (есть заглушки в прототипе):
- *   guard, init, remove
- * @param {string} name - Имя компонента. Должно быть уникальным.
- * @param {object} options - Определения guard, init, remove и другие опции.
+ * Component.
+ * @param {string} name - The name of the component. It must be unique.
+ * @param {object} options - Definitions of 'guard', 'init', 'remove', 'selector' etc.
  * @constructor
  */
 function Component(name, options) {
@@ -229,9 +220,7 @@ Component.prototype = {
   constructor: Component,
 
   /**
-   * Определяет, добавлять компонент или нет.
-   * Обычно определяется в опциях при создании компонента.
-   * Вызывается движком.
+   * Determines whether or not to add the component to the engine.
    * @param {ComponentEngine} app - Вызывающий движок.
    * @returns {boolean}
    */
@@ -240,9 +229,9 @@ Component.prototype = {
   },
 
   /**
-   * Устанавливает элементы по селектору.
-   * Вызывается движком.
+   * Sets 'this.element' to an element obtained throught '$(this.selector)'.
    * @returns {boolean}
+   * @internal
    */
   tryToSetElements: function () {
     var elements = $(this.selector);
@@ -253,7 +242,7 @@ Component.prototype = {
   },
 
   /**
-   * Сбрасывает состояние компонента.
+   * Resets the component's state.
    */
   reset: function () {
     this.data = undefined;
@@ -262,9 +251,7 @@ Component.prototype = {
   },
 
   /**
-   * Выполняет инициализацию.
-   * Обычно определяется в опциях при создании компонента.
-   * Вызывается движком.
+   * Called by the engine when the component is being initialized.
    * @param {ComponentEngine} app - Вызывающий движок.
    */
   init: function (app) {
@@ -272,9 +259,7 @@ Component.prototype = {
   },
 
   /**
-   * Выполняет действия, необходимые при удалении компонента.
-   * Обычно определяется в опциях при создании компонента.
-   * Вызывается движком.
+   * Called by the engine before removing the component.
    * @param {ComponentEngine} app - Вызывающий движок.
    */
   remove: function (app) {
@@ -282,10 +267,8 @@ Component.prototype = {
   },
 
   /**
-   * Добавляет обработчик для элементов с [data-action=name].
-   * Обработчики применяются после инициализации компонента и
-   * снимаются после удаления или отключения.
-   * Вызывается по клику или change.
+   * Adds the action callback for all the elements with '[data-action=name]'.
+   * The action callback invoked on the 'click' or 'change' event.
    * @param {string} name - Значение [data-action].
    * @param {function} callback
    */
@@ -295,8 +278,8 @@ Component.prototype = {
   },
 
   /**
-   * Удаляет обработчик для элементов с [data-action=name].
-   * @param {string} name - Значение [data-action].
+   * Removes an action handler for elements with '[data-action=name]'.
+   * @param {string} name
    * @param {function} callback
    */
   removeAction: function (name, callback) {
@@ -308,9 +291,9 @@ Component.prototype = {
   },
 
   /**
-   * Выполняет обработчики действия у компонента и подкомпонентов.
+   * Recursively calls the functions associated with the event. 
    * @param {string} name
-   * @param element
+   * @param {jQuery} element - 'this' for the action handler.
    */
   executeAction: function (name, element) {
     if (this.actions.hasOwnProperty(name)) {
