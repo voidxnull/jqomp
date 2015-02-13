@@ -1,0 +1,28 @@
+{
+  "name": "jqomponents",
+  "version": "0.1.0",
+  "authors": [
+    "Dmitry Vdovin <voidxnull@gmail.com>"
+  ],
+  "description": "A micro-framework that allows you to organize jQuery code as components.",
+  "main": "jqomponents",
+  "dependencies": {
+    "jquery": ">=1.9.0"
+  },
+  "keywords": [
+    "components",
+    "jqomponents",
+    "jquery"
+  ],
+  "license": "MIT",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "moduleType": [
+    "node"
+  ]
+}
