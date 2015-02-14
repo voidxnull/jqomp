@@ -3,15 +3,15 @@
  * Handles components
  * @constructor
  */
-function ComponentEngine() {
+function Application() {
   this.components = {};
   this.eventListeners = {};
   this.initialized = false;
   this.deferredEvents = [];
 }
 
-ComponentEngine.prototype = {
-  constructor: ComponentEngine,
+Application.prototype = {
+  constructor: Application,
 
   /**
    * Initializes components, dispatches events after initialization of all the components.
@@ -54,7 +54,7 @@ ComponentEngine.prototype = {
   },
 
   /**
-   * Adds the component and initializes it if the engine is initialized.
+   * Adds the component and initializes it if the app is initialized.
    * @param {Component} component
    */
   addComponent: function (component) {
@@ -90,7 +90,7 @@ ComponentEngine.prototype = {
   removeComponent: function (component) {
     component = this.getComponent(component);
     this.disableComponent(component);
-    component.engine = undefined;
+    component.app = undefined;
     delete this.components[component];
   },
 
@@ -106,7 +106,7 @@ ComponentEngine.prototype = {
   },
 
   /**
-   * Invokes 'remove' of the component, removes event handlers of the component from the engine.
+   * Invokes 'remove' of the component, removes event handlers of the component from the app.
    * @param {string|Component} component
    */
   disableComponent: function (component) {
@@ -178,7 +178,7 @@ ComponentEngine.prototype = {
    */
   _initComponent: function (component, scopeStr) {
     scopeStr = scopeStr || component.name;
-    component.engine = this;
+    component.app = this;
     component.init(this);
     component.enabled = true;
     console.log("Component '" + scopeStr + "' initialized.", component);
@@ -203,7 +203,7 @@ function Component(name, options) {
 
   this.name = name;
   this.subcomponents = options.subcomponents || [];
-  this.engine = undefined;
+  this.app = undefined;
   this.data = {};
   this.enabled = false;
   this.parent = undefined;
@@ -220,8 +220,8 @@ Component.prototype = {
   constructor: Component,
 
   /**
-   * Determines whether or not to add the component to the engine.
-   * @param {ComponentEngine} app - Вызывающий движок.
+   * Determines whether or not to add the component to the app.
+   * @param {Application} app
    * @returns {boolean}
    */
   guard: function (app) {
@@ -251,16 +251,16 @@ Component.prototype = {
   },
 
   /**
-   * Called by the engine when the component is being initialized.
-   * @param {ComponentEngine} app - Вызывающий движок.
+   * Called by the app when the component is being initialized.
+   * @param {Application} app
    */
   init: function (app) {
     console.warn("Function 'init' is not specified for the '" + this.name + "' component.");
   },
 
   /**
-   * Called by the engine before removing the component.
-   * @param {ComponentEngine} app - Вызывающий движок.
+   * Called by the app before removing the component.
+   * @param {Application} app
    */
   remove: function (app) {
     console.warn("Function 'remove' is not specified for the '" + this.name + "' component.");
@@ -269,7 +269,7 @@ Component.prototype = {
   /**
    * Adds the action callback for all the elements with '[data-action=name]'.
    * The action callback invoked on the 'click' or 'change' event.
-   * @param {string} name - Значение [data-action].
+   * @param {string} name
    * @param {function} callback
    */
   addAction: function (name, callback) {
@@ -317,7 +317,7 @@ Component.prototype = {
    */
   addEventListener: function (event, listener) {
     listener.component = this;
-    this.engine.addEventListener(event, listener);
+    this.app.addEventListener(event, listener);
   },
 
   /**
@@ -326,7 +326,7 @@ Component.prototype = {
    * @param {function} listener
    */
   removeEventListener: function (event, listener) {
-    this.engine.removeEventListener(event, listener);
+    this.app.removeEventListener(event, listener);
   },
 
   /**
@@ -335,6 +335,6 @@ Component.prototype = {
    * @param {object} data
    */
   dispatchEvent: function (event, data) {
-    this.engine.dispatchEvent(event, data);
+    this.app.dispatchEvent(event, data);
   }
 };
