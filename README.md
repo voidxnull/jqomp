@@ -1,2 +1,7 @@
-# jqomponents
-A micro-framework that allows you to organize jQuery code as components.
+# jqomp
+A micro-framework to organize JavaScript code as components (modules).
+
+## Example
+```javascript
+
+```
