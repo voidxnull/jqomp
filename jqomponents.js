@@ -1,217 +1,192 @@
 /**
- * Engine.
+ * An event system.
+ * Event naming:
+ *   EventName - Common events
+ *   ComponentName.EventName - Component-specific events
+ * @type {{on: Function, off: Function, trigger: Function}}
+ */
+var ObservableMixin = {
+  _initEvents: function () {
+    this._eventCallbacks = {};
+  },
+
+  on: function (event, callback) {
+    if (!this._eventCallbacks[event]) {
+      this._eventCallbacks[event] = [];
+    }
+    this._eventCallbacks[event].push(callback);
+  },
+
+  off: function (event, callback) {
+    if (Array.isArray(this._eventCallbacks[event])) {
+      var index = this._eventCallbacks[event].indexOf(callback);
+
+      if (index > -1) {
+        this._eventCallbacks[event].splice(index, 1);
+      }
+    }
+  },
+
+  trigger: function (event, data) {
+    if (Array.isArray(this._eventCallbacks[event])) {
+      var len = this._eventCallbacks[event].length;
+      for (var iCallback = 0; iCallback < len; ++iCallback) {
+        this._eventCallbacks[event][iCallback](data);
+      }
+    }
+
+    if (this.parent && this.parent.trigger) {
+      this.parent.trigger(event, data);
+    }
+  }
+};
+
+function copyProperties(from, to) {
+  for (var attr in from) {
+    if (from.hasOwnProperty(attr)) {
+      to[attr] = from[attr];
+    }
+  }
+}
+
+/**
+ * An Application
  * Handles components
+ *
+ * Usage:
+ *   // Create an application
+ *   var App = new Application();
+ *
+ *   // Create a component
+ *   App.component('Example', {
+ *     selector: '.component-class',
+ *
+ *     init: function (app) {
+ *       // Initialize state here
+ *     }
+ *   });
+ *
+ *   // Initialize the application
+ *   App.init();
+ *
  * @constructor
  */
 function Application() {
-  this.components = {};
-  this.eventListeners = {};
+  copyProperties(ObservableMixin, this);
+
+  this._initEvents();
+
+  this.components = [];
+  this.uninitComponents = [];
+  this.inactiveComponents = [];
   this.initialized = false;
-  this.deferredEvents = [];
 }
 
 Application.prototype = {
   constructor: Application,
 
   /**
-   * Initializes components, dispatches events after initialization of all the components.
+   * Initializes the application
    */
   init: function () {
-    var self = this;
+    var components = this.uninitComponents;
+    var component;
 
-    // Initializing components
-    for (var c in this.components) {
-      if (this.components.hasOwnProperty(c)) {
-        var component = this.components[c];
-        if ((component.selector ? component.tryToSetElements() : true) && component.guard(this)) {
-          this._initComponent(component);
-        }
-      }
-    }
-    this.initialized = true;
-
-    // Dispatching deferred events
-    for (var e in this.deferredEvents) {
-      if (this.deferredEvents.hasOwnProperty(e)) {
-        var event = this.deferredEvents[e];
-        this.dispatchEvent(event.event, event.data);
-      }
-    }
-    this.deferredEvents.length = 0;
-
-    // Adding listeners for actions ([data-action])
-    function actionHandler() {
-      var action = $(this).data('action');
-      for (var c in self.components) {
-        if (self.components.hasOwnProperty(c)) {
-          self.components[c].executeAction(action, this);
-        }
+    for (var iComp = 0; iComp < components.length; ++iComp) {
+      component = components[iComp];
+      component._prepare(this);
+      if (component._shouldInitialize()) {
+        component.init(this);
+        this.components.push(component);
+        console.log('Component ' + component.name + ' initialized.');
+      } else {
+        component._reset();
+        this.inactiveComponents.push(component);
       }
     }
 
-    $('body').on('click', '[data-action]:not([data-trigger])', actionHandler)
-             .on('change', '[data-action][data-trigger="change"]', actionHandler);
+    this.uninitComponents.length = 0;
   },
 
   /**
-   * Adds the component and initializes it if the app is initialized.
-   * @param {Component} component
+   * Reset all the components
+   */
+  reset: function () {
+    var components = this.components.concat(this.inactiveComponents);
+
+    this.uninitComponents = components;
+    this.components = [];
+    this.inactiveComponents = [];
+
+    for (var iComp = 0; iComp < components.length; ++iComp) {
+      components[iComp]._reset();
+    }
+
+    this.initialized = false;
+  },
+
+  /**
+   * Creates a component and add it the application
+   * @param name
+   * @param opts
+   */
+  component: function (name, opts) {
+    opts.name = name;
+    var component = new Component(opts);
+
+    this.addComponent(component);
+  },
+
+  /**
+   * Adds and initializes the component
+   * @param component
    */
   addComponent: function (component) {
-      if (this.components[component.name]) {
-        console.error('Component with name "' + component.name + '" already exists.');
-        return;
-      }
-      if (this.initialized && component.guard(this)) {
-        this._initComponent(component);
-      }
-      this.components[component.name] = component;
-  },
-
-  /**
-   * Gets the component by its name.
-   * @param {string|Component} component
-   * @returns {Component}
-   */
-  getComponent: function (component) {
-    var name;
-    if (typeof component == 'string' || component instanceof String) {
-      name = component;
-    } else {
-      name = component.name;
-    }
-    return this.components[name];
-  },
-
-  /**
-   * Invokes 'disableComponent' for the component and removes it from the list of all components. 
-   * @param {string|Component} component
-   */
-  removeComponent: function (component) {
-    component = this.getComponent(component);
-    this.disableComponent(component);
-    component.app = undefined;
-    delete this.components[component];
-  },
-
-  /**
-   * Initializes the component.
-   * @param {string|Component} component
-   */
-  enableComponent: function (component) {
-    component = this.getComponent(component);
-    if (!component.enabled) {
-      this._initComponent(component);
-    }
-  },
-
-  /**
-   * Invokes 'remove' of the component, removes event handlers of the component from the app.
-   * @param {string|Component} component
-   */
-  disableComponent: function (component) {
-    component = this.getComponent(component);
-    if (component.enabled) {
-      component.remove(this);
-      component.enabled = false;
-      // Removing event handlers of the component
-      for (var ls in this.eventListeners) {
-        if (this.eventListeners.hasOwnProperty(ls)) {
-          var listeners = this.eventListeners[ls];
-          for (var i = 0; i < listeners.length; i++) {
-            if (listeners[i].component === component) {
-              listeners.splice(i, 1);
-            }
-          }
-        }
-      }
-    }
-  },
-
-  /**
-   * Adds the event listener to 'this.listeners[event]'
-   * @param {string} event
-   * @param {function} listener
-   */
-  addEventListener: function (event, listener) {
-    var listeners = this.eventListeners;
-    listeners[event] = listeners[event] || [];
-    listeners[event].push(listener);
-  },
-
-  /**
-   * Removes the event listener.
-   * @param {string} event
-   * @param {function} listener
-   */
-  removeEventListener: function (event, listener) {
-    if (!Array.isArray(this.eventListeners[event])) {
-      return;
-    }
-    var listeners = this.eventListeners[event];
-    listeners.splice(listeners.indexOf(listener), 1);
-  },
-
-  /**
-   * Dispatches the event.
-   * @param {string} event
-   * @param {object} data - Any data.
-   */
-  dispatchEvent: function (event, data) {
     if (this.initialized) {
-      var listeners = this.eventListeners[event];
-      if (Array.isArray(listeners)) {
-        for (var i = 0; i < listeners.length; i++) {
-          listeners[i](data);
-        }
+      component._prepare(this);
+      if (component._shouldInitialize()) {
+        component.init(this);
+        this.components.push(component);
+      } else {
+        component._reset();
       }
     } else {
-      this.deferredEvents.push({event: event, data: data});
+      this.uninitComponents.push(component);
     }
   },
 
   /**
-   * Recursively initializes the component and its subcomponents.
-   * @param {string|Component} component
-   * @param {string} [scopeStr]
-   * @private
+   * Get a component by the name.
+   * @param name
    */
-  _initComponent: function (component, scopeStr) {
-    scopeStr = scopeStr || component.name;
-    component.app = this;
-    component.init(this);
-    component.enabled = true;
-    console.log("Component '" + scopeStr + "' initialized.", component);
-    for (var i = 0; i < component.subcomponents.length; i++) {
-      var subcomponent = component.subcomponents[i];
-      if (subcomponent.guard(this)) {
-        subcomponent.parent = component;
-        this._initComponent(subcomponent, scopeStr + '.' + subcomponent.name);
+  getComponent: function (name) {
+    var components = this.components;
+    for (var iComp = 0; components.length; ++iComp) {
+      if (components[iComp].name == name) {
+        return components[iComp]
       }
     }
   }
 };
 
+
 /**
- * Component.
- * @param {string} name - The name of the component. It must be unique.
- * @param {object} options - Definitions of 'guard', 'init', 'remove', 'selector' etc.
+ * A Component
+ * @param opts {object}
  * @constructor
  */
-function Component(name, options) {
-  var self = this;
+function Component(opts) {
+  copyProperties(ObservableMixin, this);
 
-  this.name = name;
-  this.subcomponents = options.subcomponents || [];
-  this.app = undefined;
-  this.data = {};
-  this.enabled = false;
-  this.parent = undefined;
-  this.actions = {};
-  this.selector = undefined;
-  for (var option in options) {
-    if (options.hasOwnProperty(option)) {
-      this[option] = options[option];
+  this._initEvents();
+
+  this.guard = function () { return true; };
+  this.init = function () { console.warn('An init method is not provided for the ' + this.name + ' component.'); };
+  this.state = {};
+
+  for (var opt in opts) {
+    if (opts.hasOwnProperty(opt)) {
+      this[opt] = opts[opt];
     }
   }
 }
@@ -220,121 +195,35 @@ Component.prototype = {
   constructor: Component,
 
   /**
-   * Determines whether or not to add the component to the app.
-   * @param {Application} app
+   * Prepares the component for initialization
+   * Sets this.element using this.selector
+   * @private
+   */
+  _prepare: function (app) {
+    if (!this.selector) {
+      throw 'A selector is not provided for the ' + this.name + ' component.';
+    }
+    this.element = $(this.selector);
+    this.engine = app;
+    this.parent = app;
+  },
+
+  /**
+   * Resets the component's state
+   * @private
+   */
+  _reset: function () {
+    this.state = {};
+    delete this.engine;
+    delete this.parent;
+    delete this.element;
+  },
+
+  /**
    * @returns {boolean}
+   * @private
    */
-  guard: function (app) {
-    return true;
-  },
-
-  /**
-   * Sets 'this.element' to an element obtained throught '$(this.selector)'.
-   * @returns {boolean}
-   * @internal
-   */
-  tryToSetElements: function () {
-    var elements = $(this.selector);
-    if (elements.length > 0) {
-      this.elements = elements;
-    }
-    return !!elements.length;
-  },
-
-  /**
-   * Resets the component's state.
-   */
-  reset: function () {
-    this.data = undefined;
-    this.elements = undefined;
-    this.initialized = false;
-  },
-
-  /**
-   * Called by the app when the component is being initialized.
-   * @param {Application} app
-   */
-  init: function (app) {
-    console.warn("Function 'init' is not specified for the '" + this.name + "' component.");
-  },
-
-  /**
-   * Called by the app before removing the component.
-   * @param {Application} app
-   */
-  remove: function (app) {
-    console.warn("Function 'remove' is not specified for the '" + this.name + "' component.");
-  },
-
-  /**
-   * Adds the action callback for all the elements with '[data-action=name]'.
-   * The action callback invoked on the 'click' or 'change' event.
-   * @param {string} name
-   * @param {function} callback
-   */
-  addAction: function (name, callback) {
-    this.actions[name] = this.actions[name] || [];
-    this.actions[name].push(callback);
-  },
-
-  /**
-   * Removes an action handler for elements with '[data-action=name]'.
-   * @param {string} name
-   * @param {function} callback
-   */
-  removeAction: function (name, callback) {
-    if (!Array.isArray(this.actions[event])) {
-      return;
-    }
-    var actions = this.actions[name];
-    actions.splice(actions.indexOf(callback), 1);
-  },
-
-  /**
-   * Recursively calls the functions associated with the event. 
-   * @param {string} name
-   * @param {jQuery} element - 'this' for the action handler.
-   */
-  executeAction: function (name, element) {
-    if (this.actions.hasOwnProperty(name)) {
-      if (Array.isArray(this.actions[name])) {
-        for (var i = 0; i < this.actions.length; i++) {
-          this.actions[name][i].apply(element, [this]);
-        }
-      } else {
-        this.actions[name].apply(element, [this]);
-      }
-    }
-    for (var subI = 0; subI < this.subcomponents.length; subI++) {
-      this.subcomponents[subI].executeAction(name, element);
-    }
-  },
-
-  /**
-   *
-   * @param {string} event
-   * @param {function} listener
-   */
-  addEventListener: function (event, listener) {
-    listener.component = this;
-    this.app.addEventListener(event, listener);
-  },
-
-  /**
-   *
-   * @param {string} event
-   * @param {function} listener
-   */
-  removeEventListener: function (event, listener) {
-    this.app.removeEventListener(event, listener);
-  },
-
-  /**
-   *
-   * @param {string} event
-   * @param {object} data
-   */
-  dispatchEvent: function (event, data) {
-    this.app.dispatchEvent(event, data);
+  _shouldInitialize: function () {
+    return this.guard() && this.element.length;
   }
 };
