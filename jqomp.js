@@ -1,5 +1,5 @@
 /**
- * An event system.
+ * An event mixin.
  * Event naming:
  *   EventName - Common events
  *   ComponentName.EventName - Component-specific events
@@ -227,3 +227,6 @@ Component.prototype = {
     return this.guard() && this.element.length;
   }
 };
+
+exports.Application = Application;
+exports.Component = Component;
