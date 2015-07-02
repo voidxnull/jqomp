@@ -1,11 +1,11 @@
 {
-  "name": "jqomponents",
+  "name": "jqomp",
   "version": "0.1.0",
   "authors": [
     "Dmitry Vdovin <voidxnull@gmail.com>"
   ],
   "description": "A micro-framework that allows you to organize jQuery code as components.",
-  "main": "jqomponents",
+  "main": "jqomp.js",
   "dependencies": {
     "jquery": ">=1.9.0"
   },
